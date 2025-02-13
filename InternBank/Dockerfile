@@ -1,13 +1,20 @@
-FROM maven:3.8.4-openjdk-17 AS build
-COPY src /usr/src/app/src
-COPY pom.xml /usr/src/app
-RUN mvn -f /usr/src/app/pom.xml clean package
+# Usa uma imagem base do OpenJDK Zulu 17
+FROM azul/zulu-openjdk:17
 
-FROM mcr.microsoft.com/mssql/server:2019-latest
-ENV SA_PASSWORD=loirena
-ENV ACCEPT_EULA=Y
-COPY --from=build /usr/src/app/target/seu-projeto.jar /usr/app/seu-projeto.jar
+# Define o diretório de trabalho dentro do container
+WORKDIR /app
 
-COPY ../init.sql /usr/app/init.sql
+# Copia o JAR gerado pelo Maven para dentro do container
+COPY target/InternBank-0.0.1-SNAPSHOT.jar app.jar
 
-CMD /bin/bash -c "/opt/mssql/bin/sqlservr & sleep 30 && /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P $SA_PASSWORD -d master -i /usr/app/init.sql && tail -f /dev/null"
+# Define as variáveis de ambiente para conexão com o SQL Server
+ENV SPRING_DATASOURCE_URL=jdbc:sqlserver://internbank.database.windows.net:1433;database=internbank;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;
+ENV SPRING_DATASOURCE_USERNAME=loirena
+ENV SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+ENV SPRING_JPA_HIBERNATE_DDL_AUTO=update
+
+# Expõe a porta 8082 para comunicação com o frontend Angular
+EXPOSE 8082
+
+# Comando para rodar a aplicação
+CMD ["java", "-jar", "app.jar"]

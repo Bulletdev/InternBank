@@ -16,12 +16,10 @@ import com.projeto.InternBank.db.repositories.UsuarioRepository;
 @SpringBootTest
 class InternBankApplicationTests {
 
-	/* Add the necessary annotations to execute the application
-	and verify that the Admin and User are created in the database.
-	*/
+	@Autowired
 	private AdminRepository adminRepository;
 
-
+	@Autowired
 	private UsuarioRepository usuarioRepository;
 
 	@Autowired
@@ -35,7 +33,7 @@ class InternBankApplicationTests {
 	void initAdmin_createsAdminIfNotExists() throws Exception {
 		when(adminRepository.findById(1)).thenReturn(Optional.empty());
 
-		internBankApplication.initAdmin(adminRepository).run();
+		internBankApplication.initAdmin(adminRepository);
 
 		verify(adminRepository, times(1)).save(any(Admin.class));
 	}
@@ -44,7 +42,7 @@ class InternBankApplicationTests {
 	void initAdmin_doesNotCreateAdminIfExists() throws Exception {
 		when(adminRepository.findById(1)).thenReturn(Optional.of(new Admin()));
 
-		internBankApplication.initAdmin(adminRepository).run();
+		internBankApplication.initAdmin(adminRepository);
 
 		verify(adminRepository, never()).save(any(Admin.class));
 	}
@@ -53,7 +51,7 @@ class InternBankApplicationTests {
 	void initUser_createsUserIfNotExists() throws Exception {
 		when(usuarioRepository.findByEmail("usuario")).thenReturn(Optional.empty());
 
-		internBankApplication.initUser(usuarioRepository).run();
+		internBankApplication.initUser(usuarioRepository);
 
 		verify(usuarioRepository, times(1)).save(any(Usuario.class));
 	}
@@ -62,7 +60,7 @@ class InternBankApplicationTests {
 	void initUser_doesNotCreateUserIfExists() throws Exception {
 		when(usuarioRepository.findByEmail("usuario")).thenReturn(Optional.of(new Usuario()));
 
-		internBankApplication.initUser(usuarioRepository).run();
+		internBankApplication.initUser(usuarioRepository);
 
 		verify(usuarioRepository, never()).save(any(Usuario.class));
 	}

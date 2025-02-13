@@ -1,20 +1,35 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  app:
+  backend:
     build: .
+    container_name: internbank-backend
     ports:
-      - "8081:8081"
-    depends_on:
-      - db
-
-  db:
-    image: mcr.microsoft.com/mssql/server:2019-latest
+      - "8082:8082"
     environment:
-      SA_PASSWORD: "loirena"
-      ACCEPT_EULA: "Y"
+      SPRING_DATASOURCE_URL: "jdbc:sqlserver://internbank.database.windows.net:1433;database=internbank;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+      SPRING_DATASOURCE_USERNAME: "${SPRING_DATASOURCE_USERNAME}"
+      SPRING_DATASOURCE_PASSWORD: "${SPRING_DATASOURCE_PASSWORD}"
+    depends_on:
+      - database
+    env_file:
+      - .env
+
+  database:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: internbank-db
     ports:
       - "1433:1433"
-    volumes:
-      - ./init.sql:/usr/app/init.sql
-    command: /bin/bash -c "/opt/mssql/bin/sqlservr & sleep 30 && /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P $SA_PASSWORD -d master -i /usr/app/init.sql && tail -f /dev/null"
+    environment:
+      SA_PASSWORD: "${SA_PASSWORD}"
+      ACCEPT_EULA: "Y"
+    env_file:
+      - .env
+
+  frontend:
+    build: ./frontend
+    container_name: internbank-frontend
+    ports:
+      - "4200:4200"
+    depends_on:
+      - backend
