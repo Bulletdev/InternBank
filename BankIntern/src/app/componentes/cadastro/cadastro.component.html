@@ -1,0 +1,28 @@
+<div class="register-container">
+    <h2 class="titulo">{{ tituloComp }}</h2>
+    <form (ngSubmit)="onSubmit()">
+
+        <div class="form-group">
+            <input type="email" id="email" [(ngModel)]="usuario.email" name="email" required placeholder="Email">
+            <div *ngIf="errorMessage" class="error-message">
+                {{ errorMessage }}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <input type="password" id="password" [(ngModel)]="usuario.password" name="password" placeholder="Senha" required>
+        </div>
+
+        <div class="form-group">
+            <input type="text" id="nome" [(ngModel)]="usuario.nome" name="nome" placeholder="Nome Completo" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            Cadastrar
+        </button>
+    </form>
+    <p>
+        Já tem uma conta? <a class="acessar" routerLink="/login">Acesse</a>
+    </p>
+    <footer class="rodape">Direitos Reservado - Intern Bank 2025</footer>
+</div>
