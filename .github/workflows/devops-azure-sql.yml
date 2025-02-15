@@ -1,0 +1,82 @@
+name: DevOps Azure SQL Server
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy Infraestrutura no Azure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+      
+      - name: Configurar o Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Deploy do Banco de Dados com Terraform
+        uses: hashicorp/setup-terraform@v2
+      
+      - run: |
+          terraform init
+          terraform apply -auto-approve
+        working-directory: ./infra
+
+  run-migrations:
+    name: Aplicar Migrações
+    needs: deploy-infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+      
+      - name: Instalar Flyway
+        run: |
+          curl -L "https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/9.0.1/flyway-commandline-9.0.1-linux-x64.tar.gz" | tar xvz
+          sudo mv flyway-9.0.1 /usr/local/flyway
+          sudo ln -s /usr/local/flyway/flyway /usr/local/bin/flyway
+      
+      - name: Executar Migrações
+        run: |
+          flyway -url="jdbc:sqlserver://internbank.database.windows.net:1433;database=internbank;encrypt=true;trustServerCertificate=false;" -user="loirena@internbank" -password="${{ secrets.DB_PASSWORD }}" migrate
+        working-directory: ./migrations
+
+  monitoramento:
+    name: Configurar Monitoramento Completo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar Azure Monitor
+        run: |
+          az monitor log-analytics workspace create --resource-group InternBankRG --workspace-name InternBankWorkspace
+          az monitor diagnostic-settings create --name 'SQLMonitor' --resource-group InternBankRG --workspace InternBankWorkspace --logs '[{"category": "SQLSecurityAuditEvents", "enabled": true}]'
+          az monitor metrics alert create --name "HighCPUUsage" --resource-group InternBankRG --scopes /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/InternBankRG/providers/Microsoft.Sql/servers/internbank --condition "avg PercentageCPU > 80" --window-size 5m --evaluation-frequency 1m --action-group "AdminNotification"
+          az monitor metrics alert create --name "HighDTUUsage" --resource-group InternBankRG --scopes /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/InternBankRG/providers/Microsoft.Sql/servers/internbank --condition "avg dtu_consumption_percent > 90" --window-size 5m --evaluation-frequency 1m --action-group "AdminNotification"
+          az monitor action-group create --name "AdminNotification" --resource-group InternBankRG --short-name "AdminAlert" --email-receiver "AdminEmail" admin@example.com
+
+      - name: Configurar Painel no Grafana
+        run: |
+          az grafana dashboard create --name "InternBankMonitoring" --resource-group InternBankRG --json '{"title": "Azure SQL Monitoring", "panels": [{"type": "graph", "title": "CPU Usage", "targets": [{"expr": "PercentageCPU"}]}, {"type": "graph", "title": "DTU Consumption", "targets": [{"expr": "dtu_consumption_percent"}]}]}'
+
+  security:
+    name: Configurar Segurança
+    runs-on: ubuntu-latest
+    steps:
+      - name: Habilitar Firewall
+        run: |
+          az sql server firewall-rule create --resource-group InternBankRG --server internbank --name AllowAllAzureIPs --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
+      
+      - name: Configurar Políticas de Acesso
+        run: |
+          az sql server ad-admin create --resource-group InternBankRG --server internbank --display-name "AdminInternBank" --object-id "${{ secrets.ADMIN_OBJECT_ID }}"
+
+      - name: Configurar Auditoria de Segurança
+        run: |
+          az sql db audit-policy update --resource-group InternBankRG --server internbank --database internbank --state Enabled --storage-account /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/InternBankRG/providers/Microsoft.Storage/storageAccounts/internbanklogs
+          az sql db threat-policy update --resource-group InternBankRG --server internbank --database internbank --state Enabled --email-account-admins Enabled --email-addresses security@example.com
